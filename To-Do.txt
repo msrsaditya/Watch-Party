@@ -1,0 +1,12 @@
+- Chat
+- Names
+- Maximum screen real-estate
+- Connection activate and deactivate
+- Show cards one by one
+- No need of ready to connect => show code directly
+- No memory leaks with video
+- Notifications for chat messages and connection failures
+- No frame repeats, perfect sync, with no unintended behavior
+- Responsive design => chat and video horizontally stacked in desktop, vertically stacked in mobile
+- Modern and beautiful UI
+- Keep only the most essential UI/UX elements, get rid of rest.
