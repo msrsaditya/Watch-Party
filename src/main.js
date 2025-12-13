@@ -9,3 +9,6 @@ inject();
 injectSpeedInsights();
 registerRenderer(UI.render);
 Controller.init();
+if ('serviceWorker' in navigator) {
+  navigator.serviceWorker.register('/sw.js');
+}

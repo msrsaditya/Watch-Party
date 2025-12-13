@@ -17,7 +17,7 @@ module.exports = {
         panel: '#171717',
         element: '#262626',
         primary: '#ffffff',
-        secondary: '#a3a3a3',
+        secondary: '#d4d4d4',
         muted: '#999999',
         accent: {
           blue: '#0d6efd',
