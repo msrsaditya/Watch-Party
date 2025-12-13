@@ -1,5 +1,6 @@
 import './style.css';
 import '@fortawesome/fontawesome-free/css/all.css';
+import { inject } from '@vercel/analytics';
 import { initializeApp } from 'firebase/app';
 import {
   getAuth,
@@ -36,6 +37,7 @@ import {
   onDisconnect,
   update as updateDb,
 } from 'firebase/database';
+inject();
 let toastTimer;
 let interactionTimer;
 let singleTapTimer;
