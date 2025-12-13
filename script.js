@@ -36,14 +36,6 @@ import {
   onDisconnect,
   update as updateDb,
 } from 'firebase/database';
-const apiKeys = [
-  'AIzaSyBBtnMZDx9YKpaRpfz3ulV_5hyPp60qpxI',
-  'AIzaSyC2OOgjOdaRyT-JKvICoYAdZzAtSr18Xto',
-  'AIzaSyCxksgwQ1orVJaGdBxFuFGXq7AgdAvtKls',
-  'AIzaSyB3NxJqI_NHmYKNa7JbXsW8o8UhmtiWdPg',
-  'AIzaSyDdmiAYiFqPrCo4BQQVBTIJ6Bi7ujvAf3w',
-];
-let currentKeyIndex = 0;
 let toastTimer;
 let interactionTimer;
 let singleTapTimer;
@@ -362,30 +354,30 @@ const Gemini = {
       return {};
     }
   },
-    async ask(prompt) {
-        const context = this.getAppContext();
-        const fullPrompt = `[Current State Context]\n${JSON.stringify(context, null, 2)}\n[End Context]\n\nUser Query: ${prompt}`;
-        try {
-          const response = await fetch('/api/gemini', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              prompt: fullPrompt,
-              systemInstruction: SYSTEM_PROMPT
-            })
-          });
-          if (!response.ok) throw new Error('AI Server Error');
-          const data = await response.json();
-          return (
-            data.candidates?.[0]?.content?.parts?.[0]?.text ||
-            "I couldn't think of a response."
-          );
-        } catch (e) {
-          console.error(e);
-          return "Sorry, I'm having trouble connecting to my brain right now.";
-        }
-      }
-    };
+  async ask(prompt) {
+    const context = this.getAppContext();
+    const fullPrompt = `[Current State Context]\n${JSON.stringify(context, null, 2)}\n[End Context]\n\nUser Query: ${prompt}`;
+    try {
+      const response = await fetch('/api/gemini', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          prompt: fullPrompt,
+          systemInstruction: SYSTEM_PROMPT 
+        })
+      });
+      if (!response.ok) throw new Error('AI Server Error');
+      const data = await response.json();
+      return (
+        data.candidates?.[0]?.content?.parts?.[0]?.text ||
+        "I couldn't think of a response."
+      );
+    } catch (e) {
+      console.error(e);
+      return "Sorry, I'm having trouble connecting to my brain right now.";
+    }
+  },
+};
     const fetchWithRotation = async (attempt = 0) => {
       if (attempt >= apiKeys.length * 2) {
         throw new Error('All API keys exhausted.');
