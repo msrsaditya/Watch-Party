@@ -230,6 +230,11 @@ export const UI = {
     }
   },
   addChatBubble(msg) {
+    const isFullscreen =
+      document.fullscreenElement ||
+      document.body.classList.contains('pseudo-fs') ||
+      (DOM.wrapper && DOM.wrapper.classList.contains('ios-fullscreen'));
+    if (!isFullscreen) return;
     if (msg.uid === State.user.uid) return;
     const bub = document.createElement('div');
     bub.className =

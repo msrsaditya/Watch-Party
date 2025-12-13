@@ -80,8 +80,12 @@ export const Controller = {
     await AuthService.resetPassword(email);
   },
   async checkVerification() {
-    const user = AuthService.currentUser;
-    if (user) {
+    try {
+      const user = AuthService.currentUser;
+      if (!user) {
+        Utils.toast('Authentication not ready yet', 'error');
+        return false;
+      }
       await user.reload();
       if (user.emailVerified) {
         DOM.verifyModal.classList.add('hidden');
@@ -99,8 +103,11 @@ export const Controller = {
         Utils.toast('Not Verified Yet', 'error');
         return false;
       }
+    } catch (e) {
+      console.error(e);
+      Utils.toast('Verification Check Failed', 'error');
+      return false;
     }
-    return false;
   },
   logout() {
     AuthService.logout();
