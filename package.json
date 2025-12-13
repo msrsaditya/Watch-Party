@@ -1,6 +1,7 @@
 {
   "name": "watch-party",
   "version": "1.0.0",
+  "type": "module",
   "description": "",
   "main": "script.js",
   "scripts": {
@@ -15,7 +16,6 @@
   "keywords": [],
   "author": "",
   "license": "ISC",
-  "type": "commonjs",
   "devDependencies": {
     "@eslint/css": "^0.14.1",
     "@eslint/js": "^9.39.1",
