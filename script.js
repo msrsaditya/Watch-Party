@@ -1,5 +1,4 @@
 import './style.css';
-import '@fortawesome/fontawesome-free/css/all.css';
 import { inject } from '@vercel/analytics';
 import { initializeApp } from 'firebase/app';
 import {
@@ -15,28 +14,6 @@ import {
   setPersistence,
   browserSessionPersistence,
 } from 'firebase/auth';
-import {
-  initializeFirestore,
-  persistentLocalCache,
-  persistentMultipleTabManager,
-  collection,
-  doc,
-  setDoc,
-  updateDoc,
-  onSnapshot,
-  addDoc,
-  deleteDoc,
-  getDocs,
-  deleteField,
-} from 'firebase/firestore';
-import {
-  getDatabase,
-  ref,
-  set,
-  onValue,
-  onDisconnect,
-  update as updateDb,
-} from 'firebase/database';
 inject();
 let toastTimer;
 let interactionTimer;
@@ -44,6 +21,81 @@ let singleTapTimer;
 let typingTimer;
 let lastChatTimestamp = Date.now();
 let pendingModalOpen = false;
+const SYSTEM_PROMPT = `<role>
+You are Friday, a watch party AI assistant. Your sole purpose is to execute watch party control actions and answer factual queries with maximum efficiency.
+</role>
+
+<core_directive>
+Convert natural language requests into watch party actions. Execute commands via JSON. Respond in ONE LINE ONLY with robotic brevity.
+You are ALLOWED to answer general knowledge and factual questions (e.g., "Who is...?", "What is...?", "Height of...?").
+</core_directive>
+
+<context_awareness>
+You will receive a [Current State Context] block. Use this to answer queries about the room, video, or chat. You are 'Friday'.
+It contains room info, video state, current users, and chat history. Use this to be all-knowing.
+</context_awareness>
+
+<permissions>
+- CRITICAL ACTIONS (kick, clear): ONLY execute if context.room.isModerator is true.
+- If a non-moderator asks for a critical action, reply text: "I'm sorry, I can't do that. Only the host has permission."
+- GLOBAL ACTIONS (brightness, volume, aspect, orient, lock, sidebar, play, pause, seek, speed, subtitle): Execute for everyone if requested.
+</permissions>
+
+<response_protocol>
+- If the user greets (e.g., "Hello", "Hi"), greet back politely and casually. DO NOT ask for commands.
+- Default response for successful actions: "Done." + command
+- For factual queries: Direct answer only, no elaboration.
+- NO explanations unless explicitly requested
+- NO subjective opinions, suggestions, or follow-up questions
+- ONE LINE maximum for all responses
+- Robotic, direct, unbiased tone (except for greetings)
+</response_protocol>
+
+<command_execution>
+Append ALL commands using this format:
+|||{"action": "...", ...}|||
+
+For multiple commands:
+|||[{"action": "..."}, {"action": "..."}]|||
+
+Available actions:
+1. Play/Pause: {"action": "play"} | {"action": "pause"}
+2. Seek: {"action": "seek", "time": 120} | {"action": "seek", "delta": 30}
+3. Speed: {"action": "speed", "value": 1.5}
+4. Aspect: {"action": "aspect", "value": "Fill"|"Original"|"16:9"|"16:10"|"4:3"|"2.35:1"}
+5. Orient: {"action": "orient", "value": "landscape"|"portrait"|"auto"}
+6. Sidebar: {"action": "sidebar", "value": true|false}
+7. Subtitles: {"action": "subtitle", "index": 0} (use -1 to disable)
+8. Kick: {"action": "kick", "uid": "user_id"}
+9. Lock: {"action": "lock", "value": true|false}
+10. Clear: {"action": "clear"} (clears chat)
+11. Logout: {"action": "logout"}
+12. Copy: {"action": "copy"} (copies room ID)
+13. Volume: {"action": "volume", "value": 0.5} (0.0-1.0)
+14. Brightness: {"action": "brightness", "value": 0.5} (0.0-1.0)
+15. Fullscreen: {"action": "fullscreen"}
+</command_execution>
+
+<natural_language_interpretation>
+Common user phrases and their actions:
+- "bigger screen" / "zoom in" -> aspect: Fill or 16:9
+- "too dark" -> increase brightness
+- "too bright" -> decrease brightness
+- "skip forward/back" -> seek with delta
+- "too fast/slow" -> adjust speed
+- "can't hear" / "louder" -> increase volume
+- "mute" -> volume: 0
+- "turn off chat" -> clear chat
+- "hide sidebar" -> sidebar: false
+</natural_language_interpretation>
+
+<constraints>
+- NEVER provide opinions on content, preferences, or recommendations
+- NEVER engage in conversation beyond the task (except greetings and general knowledge)
+- NEVER explain actions unless explicitly asked "why" or "how."
+- NEVER use multiple lines
+- Token efficiency is critical: be maximally concise
+</constraints>`;
 const Utils = {
   esc: (str) =>
     (str || '').replace(
@@ -244,81 +296,6 @@ const Security = {
     if (!State.user) throw new Error('Unauthorized');
   },
 };
-const SYSTEM_PROMPT = `<role>
-You are Friday, a watch party AI assistant. Your sole purpose is to execute watch party control actions and answer factual queries with maximum efficiency.
-</role>
-
-<core_directive>
-Convert natural language requests into watch party actions. Execute commands via JSON. Respond in ONE LINE ONLY with robotic brevity.
-You are ALLOWED to answer general knowledge and factual questions (e.g., "Who is...?", "What is...?", "Height of...?").
-</core_directive>
-
-<context_awareness>
-You will receive a [Current State Context] block. Use this to answer queries about the room, video, or chat. You are 'Friday'.
-It contains room info, video state, current users, and chat history. Use this to be all-knowing.
-</context_awareness>
-
-<permissions>
-- CRITICAL ACTIONS (kick, clear): ONLY execute if context.room.isModerator is true.
-- If a non-moderator asks for a critical action, reply text: "I'm sorry, I can't do that. Only the host has permission."
-- GLOBAL ACTIONS (brightness, volume, aspect, orient, lock, sidebar, play, pause, seek, speed, subtitle): Execute for everyone if requested.
-</permissions>
-
-<response_protocol>
-- If the user greets (e.g., "Hello", "Hi"), greet back politely and casually. DO NOT ask for commands.
-- Default response for successful actions: "Done." + command
-- For factual queries: Direct answer only, no elaboration.
-- NO explanations unless explicitly requested
-- NO subjective opinions, suggestions, or follow-up questions
-- ONE LINE maximum for all responses
-- Robotic, direct, unbiased tone (except for greetings)
-</response_protocol>
-
-<command_execution>
-Append ALL commands using this format:
-|||{"action": "...", ...}|||
-
-For multiple commands:
-|||[{"action": "..."}, {"action": "..."}]|||
-
-Available actions:
-1. Play/Pause: {"action": "play"} | {"action": "pause"}
-2. Seek: {"action": "seek", "time": 120} | {"action": "seek", "delta": 30}
-3. Speed: {"action": "speed", "value": 1.5}
-4. Aspect: {"action": "aspect", "value": "Fill"|"Original"|"16:9"|"16:10"|"4:3"|"2.35:1"}
-5. Orient: {"action": "orient", "value": "landscape"|"portrait"|"auto"}
-6. Sidebar: {"action": "sidebar", "value": true|false}
-7. Subtitles: {"action": "subtitle", "index": 0} (use -1 to disable)
-8. Kick: {"action": "kick", "uid": "user_id"}
-9. Lock: {"action": "lock", "value": true|false}
-10. Clear: {"action": "clear"} (clears chat)
-11. Logout: {"action": "logout"}
-12. Copy: {"action": "copy"} (copies room ID)
-13. Volume: {"action": "volume", "value": 0.5} (0.0-1.0)
-14. Brightness: {"action": "brightness", "value": 0.5} (0.0-1.0)
-15. Fullscreen: {"action": "fullscreen"}
-</command_execution>
-
-<natural_language_interpretation>
-Common user phrases and their actions:
-- "bigger screen" / "zoom in" → aspect: Fill or 16:9
-- "too dark" → increase brightness
-- "too bright" → decrease brightness
-- "skip forward/back" → seek with delta
-- "too fast/slow" → adjust speed
-- "can't hear" / "louder" → increase volume
-- "mute" → volume: 0
-- "turn off chat" → clear chat
-- "hide sidebar" → sidebar: false
-</natural_language_interpretation>
-
-<constraints>
-- NEVER provide opinions on content, preferences, or recommendations
-- NEVER engage in conversation beyond the task (except greetings and general knowledge)
-- NEVER explain actions unless explicitly asked "why" or "how."
-- NEVER use multiple lines
-- Token efficiency is critical: be maximally concise
-</constraints>`;
 const Gemini = {
   getAppContext() {
     try {
@@ -359,7 +336,9 @@ const Gemini = {
   async ask(prompt) {
     const context = this.getAppContext();
     const fullPrompt = `[Current State Context]\n${JSON.stringify(context, null, 2)}\n[End Context]\n\nUser Query: ${prompt}`;
+
     try {
+      // Call our own secure Vercel API route
       const response = await fetch('/api/gemini', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -368,7 +347,9 @@ const Gemini = {
           systemInstruction: SYSTEM_PROMPT,
         }),
       });
+
       if (!response.ok) throw new Error('AI Server Error');
+
       const data = await response.json();
       return (
         data.candidates?.[0]?.content?.parts?.[0]?.text ||
@@ -384,10 +365,14 @@ const Network = {
   db: null,
   auth: null,
   rtdb: null,
+  FS: null,
+  RT: null,
   unsubRoom: null,
   unsubChat: null,
   unsubTyping: null,
   unsubCommands: null,
+  unsubPlayback: null,
+  unsubPresence: null,
   async init(onAuthChange) {
     this.onAuthChangeCallback = onAuthChange;
     try {
@@ -404,13 +389,8 @@ const Network = {
             };
       const app = initializeApp(cfg);
       this.auth = getAuth(app);
+      this.app = app;
       await setPersistence(this.auth, browserSessionPersistence);
-      this.db = initializeFirestore(app, {
-        localCache: persistentLocalCache({
-          tabManager: persistentMultipleTabManager(),
-        }),
-      });
-      this.rtdb = getDatabase(app);
       onAuthStateChanged(this.auth, (u) => {
         const user = u
           ? {
@@ -427,23 +407,36 @@ const Network = {
       Utils.toast('Network Init Error', 'error');
     }
   },
+  async ensureDB() {
+    if (this.db && this.rtdb && this.FS && this.RT) return;
+    UI.toggleSpinner(true);
+    try {
+      const [fsModule, rtModule] = await Promise.all([
+        import('firebase/firestore'),
+        import('firebase/database'),
+      ]);
+      this.FS = fsModule;
+      this.RT = rtModule;
+      this.db = this.FS.initializeFirestore(this.app, {
+        localCache: this.FS.persistentLocalCache({
+          tabManager: this.FS.persistentMultipleTabManager(),
+        }),
+      });
+      this.rtdb = this.RT.getDatabase(this.app);
+    } catch (e) {
+      console.error('Failed to load DB chunks', e);
+      Utils.toast('Failed to load resources', 'error');
+      throw e;
+    } finally {
+      UI.toggleSpinner(false);
+    }
+  },
   async login(email, password) {
     try {
       await signInWithEmailAndPassword(this.auth, email, password);
       Utils.toast('Welcome Back');
     } catch (e) {
-      if (
-        e.code === 'auth/wrong-password' ||
-        e.code === 'auth/invalid-credential'
-      ) {
-        Utils.toast('Invalid Email or Password', 'error');
-      } else if (e.code === 'auth/user-not-found') {
-        Utils.toast('User Not Found', 'error');
-      } else if (e.code === 'auth/too-many-requests') {
-        Utils.toast('Too many attempts. Try later.', 'error');
-      } else {
-        Utils.toast(e.message, 'error');
-      }
+      this.handleAuthError(e);
       throw e;
     }
   },
@@ -458,12 +451,24 @@ const Network = {
       await sendEmailVerification(cred.user);
       return cred.user;
     } catch (e) {
-      if (e.code === 'auth/email-already-in-use')
-        Utils.toast('Email Exists. Please Login.', 'error');
-      else if (e.code === 'auth/weak-password')
-        Utils.toast('Password too weak', 'error');
-      else Utils.toast(e.message, 'error');
+      this.handleAuthError(e);
       throw e;
+    }
+  },
+  handleAuthError(e) {
+    if (
+      e.code === 'auth/wrong-password' ||
+      e.code === 'auth/invalid-credential'
+    ) {
+      Utils.toast('Invalid Email or Password', 'error');
+    } else if (e.code === 'auth/user-not-found') {
+      Utils.toast('User Not Found', 'error');
+    } else if (e.code === 'auth/email-already-in-use') {
+      Utils.toast('Email Exists. Please Login.', 'error');
+    } else if (e.code === 'auth/weak-password') {
+      Utils.toast('Password too weak', 'error');
+    } else {
+      Utils.toast(e.message, 'error');
     }
   },
   async resetPassword(email) {
@@ -489,7 +494,8 @@ const Network = {
     onTyping,
     onCommand
   ) {
-    const roomRef = doc(
+    await this.ensureDB();
+    const roomRef = this.FS.doc(
       this.db,
       'artifacts',
       typeof __app_id !== 'undefined' ? __app_id : 'default-app',
@@ -498,20 +504,20 @@ const Network = {
       'rooms',
       id
     );
-    const playbackRef = ref(this.rtdb, `rooms/${id}/playback`);
-    const presenceRef = ref(this.rtdb, `rooms/${id}/presence`);
-    const myPresenceRef = ref(
+    const playbackRef = this.RT.ref(this.rtdb, `rooms/${id}/playback`);
+    const presenceRef = this.RT.ref(this.rtdb, `rooms/${id}/presence`);
+    const myPresenceRef = this.RT.ref(
       this.rtdb,
       `rooms/${id}/presence/${State.user.uid}`
     );
-    const connectedRef = ref(this.rtdb, '.info/connected');
-    onValue(connectedRef, (snap) => {
+    const connectedRef = this.RT.ref(this.rtdb, '.info/connected');
+    this.RT.onValue(connectedRef, (snap) => {
       if (snap.val() === true) {
-        set(myPresenceRef, true);
-        onDisconnect(myPresenceRef).set(false);
+        this.RT.set(myPresenceRef, true);
+        this.RT.onDisconnect(myPresenceRef).set(false);
       }
     });
-    onValue(presenceRef, (snap) => {
+    this.unsubPresence = this.RT.onValue(presenceRef, (snap) => {
       const val = snap.val();
       if (val) onPresence(val);
     });
@@ -522,14 +528,14 @@ const Network = {
       fileHash: null,
     };
     if (isHost) {
-      await set(playbackRef, {
+      await this.RT.set(playbackRef, {
         status: 'paused',
         time: 0,
         speed: 1,
         trigger: State.local.sessionId,
         timestamp: Date.now(),
       });
-      await setDoc(roomRef, {
+      await this.FS.setDoc(roomRef, {
         host: State.user.uid,
         name: name,
         participants: {
@@ -537,7 +543,7 @@ const Network = {
         },
       });
     } else {
-      await setDoc(
+      await this.FS.setDoc(
         roomRef,
         {
           participants: {
@@ -549,23 +555,23 @@ const Network = {
         }
       );
     }
-    this.unsubRoom = onSnapshot(roomRef, (snap) => {
+    this.unsubRoom = this.FS.onSnapshot(roomRef, (snap) => {
       if (!snap.exists()) return location.reload();
       const data = snap.data();
       onUpdate(data);
     });
-    onValue(playbackRef, (snapshot) => {
+    this.unsubPlayback = this.RT.onValue(playbackRef, (snapshot) => {
       const val = snapshot.val();
       if (val) onPlayback(val);
     });
-    const chatRef = collection(roomRef, 'messages');
-    this.unsubChat = onSnapshot(chatRef, (snap) => {
+    const chatRef = this.FS.collection(roomRef, 'messages');
+    this.unsubChat = this.FS.onSnapshot(chatRef, (snap) => {
       const msgs = [];
       snap.forEach((d) => msgs.push(d.data()));
       onChat(msgs);
     });
-    const typingRef = collection(roomRef, 'typing');
-    this.unsubTyping = onSnapshot(typingRef, (snap) => {
+    const typingRef = this.FS.collection(roomRef, 'typing');
+    this.unsubTyping = this.FS.onSnapshot(typingRef, (snap) => {
       const typers = [];
       snap.forEach((d) =>
         typers.push({
@@ -575,8 +581,8 @@ const Network = {
       );
       onTyping(typers);
     });
-    const cmdRef = collection(roomRef, 'commands');
-    this.unsubCommands = onSnapshot(cmdRef, (snap) => {
+    const cmdRef = this.FS.collection(roomRef, 'commands');
+    this.unsubCommands = this.FS.onSnapshot(cmdRef, (snap) => {
       snap.docChanges().forEach((change) => {
         if (change.type === 'added') {
           const cmdData = change.doc.data();
@@ -597,11 +603,14 @@ const Network = {
       delete firestoreData.playback;
     }
     if (rtdbData.playback) {
-      const playbackRef = ref(this.rtdb, `rooms/${State.room.id}/playback`);
-      updateDb(playbackRef, rtdbData.playback);
+      const playbackRef = this.RT.ref(
+        this.rtdb,
+        `rooms/${State.room.id}/playback`
+      );
+      this.RT.update(playbackRef, rtdbData.playback);
     }
     if (Object.keys(firestoreData).length > 0) {
-      const roomRef = doc(
+      const roomRef = this.FS.doc(
         this.db,
         'artifacts',
         typeof __app_id !== 'undefined' ? __app_id : 'default-app',
@@ -610,12 +619,12 @@ const Network = {
         'rooms',
         State.room.id
       );
-      await updateDoc(roomRef, firestoreData);
+      await this.FS.updateDoc(roomRef, firestoreData);
     }
   },
   async broadcastCommand(cmd) {
     if (!State.room.id) return;
-    const roomRef = doc(
+    const roomRef = this.FS.doc(
       this.db,
       'artifacts',
       typeof __app_id !== 'undefined' ? __app_id : 'default-app',
@@ -624,7 +633,7 @@ const Network = {
       'rooms',
       State.room.id
     );
-    await addDoc(collection(roomRef, 'commands'), {
+    await this.FS.addDoc(this.FS.collection(roomRef, 'commands'), {
       command: cmd,
       senderName: State.user.name,
       timestamp: Date.now(),
@@ -632,7 +641,7 @@ const Network = {
   },
   async sendChat(text, senderName = null, senderUid = null) {
     Security.ensureAuth();
-    const roomRef = doc(
+    const roomRef = this.FS.doc(
       this.db,
       'artifacts',
       typeof __app_id !== 'undefined' ? __app_id : 'default-app',
@@ -641,7 +650,7 @@ const Network = {
       'rooms',
       State.room.id
     );
-    await addDoc(collection(roomRef, 'messages'), {
+    await this.FS.addDoc(this.FS.collection(roomRef, 'messages'), {
       text: text.trim(),
       sender: senderName || State.user.name,
       uid: senderUid || State.user.uid,
@@ -650,7 +659,7 @@ const Network = {
   },
   async setTyping(isTyping) {
     if (!State.room.id) return;
-    const roomRef = doc(
+    const roomRef = this.FS.doc(
       this.db,
       'artifacts',
       typeof __app_id !== 'undefined' ? __app_id : 'default-app',
@@ -659,17 +668,17 @@ const Network = {
       'rooms',
       State.room.id
     );
-    const typeRef = doc(roomRef, 'typing', State.user.uid);
+    const typeRef = this.FS.doc(roomRef, 'typing', State.user.uid);
     if (isTyping)
-      await setDoc(typeRef, {
+      await this.FS.setDoc(typeRef, {
         name: State.user.name,
         timestamp: Date.now(),
       });
-    else await deleteDoc(typeRef);
+    else await this.FS.deleteDoc(typeRef);
   },
   async clearChat() {
     if (!State.room.id) return;
-    const roomRef = doc(
+    const roomRef = this.FS.doc(
       this.db,
       'artifacts',
       typeof __app_id !== 'undefined' ? __app_id : 'default-app',
@@ -678,15 +687,15 @@ const Network = {
       'rooms',
       State.room.id
     );
-    const chatRef = collection(roomRef, 'messages');
-    const snap = await getDocs(chatRef);
+    const chatRef = this.FS.collection(roomRef, 'messages');
+    const snap = await this.FS.getDocs(chatRef);
     const promises = [];
-    snap.forEach((d) => promises.push(deleteDoc(d.ref)));
+    snap.forEach((d) => promises.push(this.FS.deleteDoc(d.ref)));
     await Promise.all(promises);
   },
   async updatePresence(hash) {
     if (!State.room.id) return;
-    const roomRef = doc(
+    const roomRef = this.FS.doc(
       this.db,
       'artifacts',
       typeof __app_id !== 'undefined' ? __app_id : 'default-app',
@@ -695,13 +704,13 @@ const Network = {
       'rooms',
       State.room.id
     );
-    await updateDoc(roomRef, {
+    await this.FS.updateDoc(roomRef, {
       [`participants.${State.user.uid}.fileHash`]: hash,
     });
   },
   async kickUser(uid) {
     Security.ensureAuth();
-    const roomRef = doc(
+    const roomRef = this.FS.doc(
       this.db,
       'artifacts',
       typeof __app_id !== 'undefined' ? __app_id : 'default-app',
@@ -710,13 +719,13 @@ const Network = {
       'rooms',
       State.room.id
     );
-    await updateDoc(roomRef, {
+    await this.FS.updateDoc(roomRef, {
       [`participants.${uid}.kicked`]: true,
     });
   },
   async acceptUser(uid) {
     Security.ensureAuth();
-    const roomRef = doc(
+    const roomRef = this.FS.doc(
       this.db,
       'artifacts',
       typeof __app_id !== 'undefined' ? __app_id : 'default-app',
@@ -725,7 +734,7 @@ const Network = {
       'rooms',
       State.room.id
     );
-    await updateDoc(roomRef, {
+    await this.FS.updateDoc(roomRef, {
       [`participants.${uid}.active`]: true,
     });
   },
@@ -734,7 +743,31 @@ const Network = {
   },
   async leaveRoom() {
     if (!State.room.id) return;
-    const roomRef = doc(
+    if (this.unsubRoom) {
+      this.unsubRoom();
+      this.unsubRoom = null;
+    }
+    if (this.unsubChat) {
+      this.unsubChat();
+      this.unsubChat = null;
+    }
+    if (this.unsubTyping) {
+      this.unsubTyping();
+      this.unsubTyping = null;
+    }
+    if (this.unsubCommands) {
+      this.unsubCommands();
+      this.unsubCommands = null;
+    }
+    if (this.unsubPlayback) {
+      this.unsubPlayback();
+      this.unsubPlayback = null;
+    }
+    if (this.unsubPresence) {
+      this.unsubPresence();
+      this.unsubPresence = null;
+    }
+    const roomRef = this.FS.doc(
       this.db,
       'artifacts',
       typeof __app_id !== 'undefined' ? __app_id : 'default-app',
@@ -743,9 +776,13 @@ const Network = {
       'rooms',
       State.room.id
     );
-    await updateDoc(roomRef, {
-      [`participants.${State.user.uid}`]: deleteField(),
-    });
+    try {
+      await this.FS.updateDoc(roomRef, {
+        [`participants.${State.user.uid}`]: this.FS.deleteField(),
+      });
+    } catch {
+      console.warn('Offline, cannot remove participant');
+    }
   },
 };
 const UI = {
@@ -949,7 +986,6 @@ const UI = {
         p.fileHash !== State.local.hostHash
           ? '<i class="fas fa-exclamation-triangle text-danger-text mr-2" title="File Mismatch"></i>'
           : '';
-
       div.innerHTML = `
         <div class="flex items-center gap-2 min-w-0">
           <div class="w-2 h-2 rounded-full ${isOnline ? 'bg-green-500 shadow-[0_0_8px_rgba(34,197,94,0.6)]' : 'bg-red-500'} shrink-0"></div>
