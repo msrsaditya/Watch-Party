@@ -79,14 +79,17 @@ export const Utils = {
   toast: (msg, type = 'normal') => {
     const t = DOM.toast;
     if (window.toastTimer) clearTimeout(window.toastTimer);
+    t.classList.remove('opacity-100', 'translate-y-0');
+    t.classList.add('opacity-0', '-translate-y-10');
+    void t.offsetWidth;
     let displayMsg = msg;
     if (msg.toLowerCase() === 'id copied') displayMsg = 'ID Copied';
     else displayMsg = msg;
     t.textContent = displayMsg;
-    t.className = `fixed top-[15%] left-1/2 -translate-x-1/2 px-6 py-3 rounded-full shadow-2xl z-[20000] transition-all duration-300 font-semibold pointer-events-none whitespace-nowrap opacity-100 translate-y-0 text-sm tracking-wide ${type === 'error' ? 'bg-red-600/90 backdrop-blur text-white' : 'bg-white/90 backdrop-blur text-black'}`;
+    t.className = `fixed top-[15%] left-1/2 -translate-x-1/2 px-6 py-3 rounded-full shadow-2xl z-[30000] transition-all duration-300 font-semibold pointer-events-none whitespace-nowrap opacity-100 translate-y-0 text-sm tracking-wide ${type === 'error' ? 'bg-red-600/90 backdrop-blur text-white' : 'bg-white/90 backdrop-blur text-black'}`;
     window.toastTimer = setTimeout(() => {
       t.classList.remove('opacity-100', 'translate-y-0');
       t.classList.add('opacity-0', '-translate-y-10');
-    }, 2000);
+    }, 4000);
   },
 };

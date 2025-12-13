@@ -245,7 +245,7 @@ export const UI = {
     setTimeout(() => {
       bub.classList.add('opacity-0');
       setTimeout(() => bub.remove(), 500);
-    }, 2000);
+    }, 5000);
   },
   renderMembers(parts) {
     DOM.memberList.innerHTML = '';
