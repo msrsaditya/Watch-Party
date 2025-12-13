@@ -363,8 +363,8 @@ const Gemini = {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           prompt: fullPrompt,
-          systemInstruction: SYSTEM_PROMPT 
-        })
+          systemInstruction: SYSTEM_PROMPT,
+        }),
       });
       if (!response.ok) throw new Error('AI Server Error');
       const data = await response.json();
@@ -374,52 +374,6 @@ const Gemini = {
       );
     } catch (e) {
       console.error(e);
-      return "Sorry, I'm having trouble connecting to my brain right now.";
-    }
-  },
-};
-    const fetchWithRotation = async (attempt = 0) => {
-      if (attempt >= apiKeys.length * 2) {
-        throw new Error('All API keys exhausted.');
-      }
-      const apiKey = apiKeys[currentKeyIndex];
-      const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-09-2025:generateContent?key=${apiKey}`;
-      try {
-        const response = await fetch(url, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify(payload),
-        });
-        if (!response.ok) {
-          if (
-            response.status === 429 ||
-            response.status === 403 ||
-            response.status >= 500
-          ) {
-            console.warn(
-              `Key index ${currentKeyIndex} failed (${response.status}). Rotating...`
-            );
-            currentKeyIndex = (currentKeyIndex + 1) % apiKeys.length;
-            return fetchWithRotation(attempt + 1);
-          }
-          throw new Error(response.statusText);
-        }
-        return await response.json();
-      } catch {
-        console.warn(`Key index ${currentKeyIndex} network error. Rotating...`);
-        currentKeyIndex = (currentKeyIndex + 1) % apiKeys.length;
-        return fetchWithRotation(attempt + 1);
-      }
-    };
-    try {
-      const data = await fetchWithRotation();
-      return (
-        data.candidates?.[0]?.content?.parts?.[0]?.text ||
-        "I couldn't think of a response."
-      );
-    } catch {
       return "Sorry, I'm having trouble connecting to my brain right now.";
     }
   },
