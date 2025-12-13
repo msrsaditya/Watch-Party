@@ -81,7 +81,7 @@ export const Utils = {
     if (window.toastTimer) clearTimeout(window.toastTimer);
     let displayMsg = msg;
     if (msg.toLowerCase() === 'id copied') displayMsg = 'ID Copied';
-    else displayMsg = Utils.toTitleCase(msg);
+    else displayMsg = msg;
     t.textContent = displayMsg;
     t.className = `fixed top-[15%] left-1/2 -translate-x-1/2 px-6 py-3 rounded-full shadow-2xl z-[20000] transition-all duration-300 font-semibold pointer-events-none whitespace-nowrap opacity-100 translate-y-0 text-sm tracking-wide ${type === 'error' ? 'bg-red-600/90 backdrop-blur text-white' : 'bg-white/90 backdrop-blur text-black'}`;
     window.toastTimer = setTimeout(() => {

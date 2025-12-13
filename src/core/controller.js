@@ -769,7 +769,9 @@ export const Controller = {
       e.returnValue = '';
     };
     DOM.signupName?.addEventListener('input', (e) => {
-      e.target.value = Utils.toTitleCase(e.target.value);
+      e.target.value = e.target.value.replace(/(?:^|\s)\S/g, (a) =>
+        a.toUpperCase()
+      );
     });
     DOM.loginPass?.addEventListener('keydown', (e) => {
       if (e.key === 'Enter') this.handleLogin();
@@ -1005,6 +1007,17 @@ export const Controller = {
       handleInput: this.handleInput.bind(this),
       handleInputKeydown: this.handleInputKeydown.bind(this),
       kick: this.kick.bind(this),
+      handleLogin: this.handleLogin.bind(this),
+      handleSignup: this.handleSignup.bind(this),
+      forgotPassword: this.forgotPassword.bind(this),
+      logout: this.logout.bind(this),
+      checkVerification: this.checkVerification.bind(this),
+      setSpeed: this.setSpeed.bind(this),
+      setAspect: this.setAspect.bind(this),
+      setOrient: this.setOrient.bind(this),
+      setSubtitleSize: this.setSubtitleSize.bind(this),
+      submitChat: this.submitChat.bind(this),
+      toggleSidebar: this.toggleSidebar.bind(this),
     };
   },
 };

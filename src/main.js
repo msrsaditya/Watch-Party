@@ -1,4 +1,5 @@
 import './style.css';
+import '@fortawesome/fontawesome-free/css/all.css';
 import { inject } from '@vercel/analytics';
 import { Controller } from './core/controller.js';
 import { UI } from './components/ui.js';
