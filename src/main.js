@@ -1,9 +1,11 @@
 import './style.css';
 import '@fortawesome/fontawesome-free/css/all.css';
 import { inject } from '@vercel/analytics';
+import { injectSpeedInsights } from '@vercel/speed-insights';
 import { Controller } from './core/controller.js';
 import { UI } from './components/ui.js';
 import { registerRenderer } from './core/state.js';
 inject();
+injectSpeedInsights();
 registerRenderer(UI.render);
 Controller.init();
